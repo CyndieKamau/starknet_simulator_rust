@@ -1,12 +1,13 @@
 //mempool transaction validation
 //the mempool is responsible for validating transactions before they are sent to the sequencer
 
-use std::collections::{VecDeque, HashMap};
+use std::collections::{VecDeque, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use crate::transaction::{Transaction, TransactionStatus};
 
 pub struct Mempool {
     pub transactions: Arc<Mutex<VecDeque<Transaction>>>, //track all txs in mempool
+    pub rejected_transactions: Arc<Mutex<HashSet<String>>>, // Track rejected tx hashes
     pub balances: Arc<Mutex<HashMap<String, u64>>>, //track balances of all accounts
     pub nonces: Arc<Mutex<HashMap<String, u64>>>, //track nonces of all accounts
 }
@@ -29,6 +30,7 @@ impl Mempool {
 
         Mempool {
             transactions: Arc::new(Mutex::new(VecDeque::new())),
+            rejected_transactions: Arc::new(Mutex::new(HashSet::new())), // Store rejected tx hashes
             balances: Arc::new(Mutex::new(initial_balances)),
             nonces: Arc::new(Mutex::new(initial_nonces)),
         }
@@ -36,6 +38,16 @@ impl Mempool {
 
     //submit a transaction to the mempool, to be marked as RECEIVED
     pub fn submit_transaction(&self, mut tx: Transaction) {
+        let mut rejected_txs = self.rejected_transactions.lock().unwrap();
+        let tx_hash = tx.get_hash();
+         // Check if transaction is already rejected
+         if rejected_txs.contains(&tx_hash) {
+            println!(
+                "[Mempool] ❌ Transaction {} is already rejected. Cannot resend!",
+                tx.id
+            );
+            return;
+        }
         tx.update_status(TransactionStatus::Received);
         let mut txs = self.transactions.lock().unwrap();
         txs.push_back(tx);
@@ -46,6 +58,7 @@ impl Mempool {
         let mut txs = self.transactions.lock().unwrap();
         let mut balances = self.balances.lock().unwrap();
         let mut nonces = self.nonces.lock().unwrap();
+        let mut rejected_txs = self.rejected_transactions.lock().unwrap();
     
         if let Some(mut tx) = txs.pop_front() {
             println!("[Mempool] is now validating transaction ID: {}", tx.id);
@@ -58,6 +71,7 @@ impl Mempool {
                     tx.id, *sender_nonce
                 );
                 tx.update_status(TransactionStatus::Rejected);
+                rejected_txs.insert(tx.get_hash()); // Store rejected tx hash
                 return None;
             }
     
@@ -70,6 +84,7 @@ impl Mempool {
                     tx.id
                 );
                 tx.update_status(TransactionStatus::Rejected);
+                rejected_txs.insert(tx.get_hash()); // Store rejected tx hash
                 return None;
             }
     
@@ -81,6 +96,7 @@ impl Mempool {
                         tx.id
                     );
                     tx.update_status(TransactionStatus::Rejected);
+                    rejected_txs.insert(tx.get_hash()); // Store rejected tx hash
                     return None;
                 }
             }

@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use sha2::{Sha256, Digest};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransactionType {
@@ -34,6 +35,17 @@ pub struct Transaction {
 static TX_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 impl Transaction {
+    // Calculate hash of the transaction
+    pub fn get_hash(&self) -> String {
+        let input = format!(
+            "{}-{}-{:?}-{}-{:?}",
+            self.id, self.sender, self.tx_type, self.nonce, self.amount
+        );
+        let mut hasher = Sha256::new();
+        hasher.update(input);
+        let result = hasher.finalize();
+        format!("{:x}", result)
+    }
 
     // Calculate fee based on tx type
     pub fn calculate_fee(tx_type: &TransactionType) -> u64 {
