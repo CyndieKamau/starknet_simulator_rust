@@ -17,6 +17,7 @@ pub enum TransactionStatus {
     AcceptedOnL1,
 }
 
+
 #[derive(Debug, Clone)]
 pub struct Transaction {
     pub id: usize,
@@ -34,49 +35,27 @@ static TX_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 impl Transaction {
 
-    //invoke tx
-    pub fn new_invoke(sender: String, receiver: String, amount: u64, fee: u64, nonce: u64) -> Self {
-        let id = TX_COUNTER.fetch_add(1, Ordering::Relaxed);
-        Transaction {
-            id,
-            sender,
-            receiver: Some(receiver),
-            contract_address: None,
-            amount: Some(amount),
-            fee,
-            tx_type: TransactionType::Invoke,
-            status: TransactionStatus::Received,
-            nonce,
+    // Calculate fee based on tx type
+    pub fn calculate_fee(tx_type: &TransactionType) -> u64 {
+        match tx_type {
+            TransactionType::Invoke => 5,  // Fixed fee for invoking transactions
+            TransactionType::Declare => 20, // Declaring contracts costs more
+            TransactionType::DeployAccount => 10, // Deploying accounts costs more
         }
     }
 
-    //declare tx
-    pub fn new_declare(sender: String, contract_address: String, fee: u64, nonce: u64) -> Self {
+    pub fn new(sender: String, tx_type: TransactionType, receiver: Option<String>, contract_address: Option<String>, amount: Option<u64>, nonce: u64) -> Self {
         let id = TX_COUNTER.fetch_add(1, Ordering::Relaxed);
-        Transaction {
-            id,
-            sender,
-            receiver: None,
-            contract_address: Some(contract_address),
-            amount: None,
-            fee,
-            tx_type: TransactionType::Declare,
-            status: TransactionStatus::Received,
-            nonce,
-        }
-    }
+        let fee = Self::calculate_fee(&tx_type); // Automatically calculate fee
 
-    //deploy account tx
-    pub fn new_deploy_account(sender: String, fee: u64, nonce: u64) -> Self {
-        let id = TX_COUNTER.fetch_add(1, Ordering::Relaxed);
         Transaction {
             id,
             sender,
-            receiver: None,
-            contract_address: None,
-            amount: None,
+            receiver,
+            contract_address,
+            amount,
             fee,
-            tx_type: TransactionType::DeployAccount,
+            tx_type,
             status: TransactionStatus::Received,
             nonce,
         }
