@@ -38,7 +38,7 @@ impl Mempool {
 
     //submit a transaction to the mempool, to be marked as RECEIVED
     pub fn submit_transaction(&self, mut tx: Transaction) {
-        let mut rejected_txs = self.rejected_transactions.lock().unwrap();
+        let rejected_txs = self.rejected_transactions.lock().unwrap();
         let tx_hash = tx.get_hash();
          // Check if transaction is already rejected
          if rejected_txs.contains(&tx_hash) {
@@ -57,23 +57,22 @@ impl Mempool {
     pub fn validate_transaction(&self) -> Option<Transaction> {
         let mut txs = self.transactions.lock().unwrap();
         let mut balances = self.balances.lock().unwrap();
-        let mut nonces = self.nonces.lock().unwrap();
+        let nonces = self.nonces.lock().unwrap();
         let mut rejected_txs = self.rejected_transactions.lock().unwrap();
     
         if let Some(mut tx) = txs.pop_front() {
             println!("[Mempool] is now validating transaction ID: {}", tx.id);
     
             // ✅ 1. Check Nonce (Prevents Replay Attacks)
-            let sender_nonce = nonces.entry(tx.sender.clone()).or_insert(0);
+            let sender_nonce = nonces.get(&tx.sender).unwrap_or(&0);
             if tx.nonce != *sender_nonce {
-                println!(
-                    "[Mempool] ❌ Transaction {} is rejected! Incorrect nonce. Expected: {}",
-                    tx.id, *sender_nonce
-                );
-                tx.update_status(TransactionStatus::Rejected);
-                rejected_txs.insert(tx.get_hash()); // Store rejected tx hash
-                return None;
-            }
+            println!(
+                "[Mempool] ❌ Transaction {} is rejected! Incorrect nonce. Expected: {}",
+                tx.id, *sender_nonce
+            );
+            tx.update_status(TransactionStatus::Rejected);
+            return None;
+        }
     
             // ✅ 2. Check If Sender Has Enough Funds for Fee + Amount
             let sender_balance = balances.get(&tx.sender).unwrap_or(&0);
@@ -103,7 +102,6 @@ impl Mempool {
     
             // ✅ 3. Deduct Fee After Validation (Only If Passed)
             *balances.get_mut(&tx.sender).unwrap() -= tx.fee;
-            *sender_nonce += 1;
     
             tx.update_status(TransactionStatus::Validated);
             println!("[Mempool] ✅ Transaction {} is validated!", tx.id);

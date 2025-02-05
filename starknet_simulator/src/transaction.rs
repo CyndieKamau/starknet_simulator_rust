@@ -10,10 +10,12 @@ pub enum TransactionType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransactionStatus {
-    Received,
-    Rejected,
-    Validated,
-    Executed,
+    Received, //tx is received by mempool
+    Rejected, //tx failed in mempool validation and is not included in a block
+    Validated, //tx passes mempool validation
+    Executed, //tx is executed by sequencer. Note: can still be reverted
+    Reverted, //tx is reverted by sequencer, will still be added to the block
+    Succeeded, //tx executed by sequencer successfully, modified in state
     ProofGenerated,
     AcceptedOnL1,
 }
