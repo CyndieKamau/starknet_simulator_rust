@@ -2,6 +2,7 @@ use starknet_simulator::mempool::Mempool;
 use starknet_simulator::sequencer::Sequencer;
 use starknet_simulator::transaction::{Transaction, TransactionType};
 use starknet_simulator::prover::Prover;
+use starknet_simulator::verifier::Verifier;
 
 use std::sync::{Arc, Mutex};
 use std::io;
@@ -13,6 +14,7 @@ fn main() {
     let mempool = Arc::new(Mempool::new());
     let sequencer = Arc::new(Mutex::new(Sequencer::new(mempool.clone())));
     let prover = Prover::new(Arc::clone(&sequencer)); 
+    let verifier = Verifier::new(Arc::clone(&sequencer));
 
     loop {
         println!("\n🌟 Welcome to the Starknet Simulator!! 🌟");
@@ -21,7 +23,8 @@ fn main() {
         println!("2. Submit Transaction");
         println!("3. Process Transactions");
         println!("4. Prove Pending Blocks (Finalize on Ethereum)");
-        println!("5. Exit");
+        println!("5. Verify Proofs on Ethereum (Finalize on L1)");
+        println!("6. Exit");
 
         let choice = get_input("Select an option: ");
 
@@ -30,7 +33,8 @@ fn main() {
             "2" => submit_transaction(&mempool),
             "3" => sequencer.lock().unwrap().process_transactions(),
             "4" => prover.verify_proof(),
-            "5" => {
+            "5" => verifier.verify_proofs(),
+            "6" => {
                 println!("👋 Exiting StarkNet Simulator. Goodbye!");
                 break;
             }
@@ -43,12 +47,20 @@ fn main() {
 fn submit_transaction(mempool: &Arc<Mempool>) {
     println!("💸 Submit a Transaction");
 
-    let sender = get_input("Enter sender name (Alice, Bob, Mark, Cyndie, Mike): ");
-     // Retrieve sender balance
-     let sender_balance = {
-        let balances = mempool.balances.lock().unwrap();
-        *balances.get(&sender).unwrap_or(&0)
+    let valid_senders = vec!["Alice", "Bob", "Mark", "Cyndie", "Mike"];
+    println!("Available senders: {:?}", valid_senders);
+
+    // Get sender name and validate it
+    let sender = loop {
+        let input = get_input("Enter sender name (Alice, Bob, Mark, Cyndie, Mike): ");
+        if let Some(correct_sender) = valid_senders.iter().find(|&&s| s.eq_ignore_ascii_case(&input)) {
+            break correct_sender.to_string(); // Return the correctly formatted name
+        } else {
+            println!("❌ Invalid sender name! Please enter a valid sender.");
+        }
     };
+    let balances = mempool.balances.lock().unwrap();
+    let sender_balance = balances.get(&sender).unwrap_or(&0);
     println!("💰 {}'s current balance: {} tokens", sender, sender_balance);
 
     let tx_type = get_input("Enter transaction type (invoke, declare, deploy): ").to_lowercase();

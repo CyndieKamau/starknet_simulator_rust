@@ -120,6 +120,16 @@ impl Sequencer {
 
         let sender_nonce = nonces.entry(tx.sender.clone()).or_insert(0);
 
+        // ✅ Check if transaction nonce matches expected nonce
+        if tx.nonce != *sender_nonce {
+            println!(
+                "[Sequencer] ❌ Transaction {} REJECTED! Nonce mismatch. Expected: {}, Got: {}",
+                tx.id, *sender_nonce, tx.nonce
+            );
+            tx.update_status(TransactionStatus::Rejected);
+            return;
+        }
+
         match tx.tx_type {
             TransactionType::Invoke => {
                 if let Some(amount) = tx.amount {
@@ -145,8 +155,6 @@ impl Sequencer {
                             *balances.get_mut(&tx.sender).unwrap() = 0;
                         }
 
-                        // ✅ Nonce still increases for reverted transactions
-                        *sender_nonce += 1;
                         tx.update_status(TransactionStatus::Reverted);
                     } else {
                         // ✅ Deduct funds sequentially
@@ -158,8 +166,6 @@ impl Sequencer {
 
                         println!("[Sequencer] ✅ Transaction {} EXECUTED!", tx.id);
 
-                        // ✅ Nonce increments for executed transactions
-                        *sender_nonce += 1;
                         tx.update_status(TransactionStatus::Succeeded);
                     }
                 }
@@ -170,11 +176,10 @@ impl Sequencer {
                     tx.id
                 );
 
-                // ✅ Nonce still increases for contract deployments
-                *sender_nonce += 1;
                 tx.update_status(TransactionStatus::Succeeded);
             }
         }
+        *sender_nonce += 1;
     }
 
     /// **Creates an L2 block containing all processed transactions**

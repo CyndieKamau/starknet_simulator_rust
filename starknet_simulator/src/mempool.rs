@@ -38,16 +38,29 @@ impl Mempool {
 
     //submit a transaction to the mempool, to be marked as RECEIVED
     pub fn submit_transaction(&self, mut tx: Transaction) {
-        let rejected_txs = self.rejected_transactions.lock().unwrap();
+        let mut rejected_txs = self.rejected_transactions.lock().unwrap();
+        // let mut nonces = self.nonces.lock().unwrap();
+    
         let tx_hash = tx.get_hash();
-         // Check if transaction is already rejected
-         if rejected_txs.contains(&tx_hash) {
+    
+        // Check if transaction is already rejected
+        if rejected_txs.contains(&tx_hash) {
             println!(
                 "[Mempool] ❌ Transaction {} is already rejected. Cannot resend!",
                 tx.id
             );
             return;
         }
+    
+        // Assign the latest nonce and increment it even if rejected
+        // let sender_nonce = nonces.entry(tx.sender.clone()).or_insert(0);
+        // tx.nonce = *sender_nonce;  // Assign nonce to transaction
+        // *sender_nonce += 1; // ✅ Increment nonce immediately
+
+        // ✅ Assign the latest nonce, but DO NOT increment here.
+        let nonces = self.nonces.lock().unwrap();
+        tx.nonce = *nonces.get(&tx.sender).unwrap_or(&0);
+    
         tx.update_status(TransactionStatus::Received);
         let mut txs = self.transactions.lock().unwrap();
         txs.push_back(tx);
@@ -56,14 +69,14 @@ impl Mempool {
     //initial check to validate tx requirements
     pub fn validate_transaction(&self) -> Option<Transaction> {
         let mut txs = self.transactions.lock().unwrap();
-        let mut balances = self.balances.lock().unwrap();
-        let nonces = self.nonces.lock().unwrap();
+        let mut balances = self.balances.lock().unwrap();     
         let mut rejected_txs = self.rejected_transactions.lock().unwrap();
     
         if let Some(mut tx) = txs.pop_front() {
             println!("[Mempool] is now validating transaction ID: {}", tx.id);
     
             // ✅ 1. Check Nonce (Prevents Replay Attacks)
+            let mut nonces = self.nonces.lock().unwrap();
             let sender_nonce = nonces.get(&tx.sender).unwrap_or(&0);
             if tx.nonce != *sender_nonce {
             println!(
@@ -72,7 +85,7 @@ impl Mempool {
             );
             tx.update_status(TransactionStatus::Rejected);
             return None;
-        }
+            }
     
             // ✅ 2. Check If Sender Has Enough Funds for Fee + Amount
             let sender_balance = balances.get(&tx.sender).unwrap_or(&0);
